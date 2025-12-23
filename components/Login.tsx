@@ -38,20 +38,20 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-[#fdfaf5]">
-      <div className="max-w-md w-full bg-white p-12 rounded-[3rem] shadow-2xl text-center border border-[#efe9e0] animate-in fade-in duration-700">
-        <img src={LOGO_URL} alt="Fernanda Yoga" className="w-32 h-32 mx-auto mb-6 object-contain" />
+      <div className="max-w-md w-full bg-white p-10 md:p-12 rounded-[3rem] shadow-sm border border-[#efe9e0] text-center animate-in fade-in zoom-in-95 duration-500">
+        <img src={LOGO_URL} alt="Fernanda Yoga" className="w-24 h-24 mx-auto mb-6 object-contain" />
         <h2 className="text-3xl font-bold mb-2 serif text-[#2d3a2a]">Fernanda Yoga</h2>
-        <p className="text-[#8a9b86] mb-8 text-sm font-medium tracking-widest uppercase opacity-70">Portal do Aluno</p>
+        <p className="text-[#8a9b86] mb-10 text-[10px] font-bold tracking-[0.2em] uppercase opacity-70">Portal Exclusivo</p>
         
-        <form onSubmit={handleSubmit} className="space-y-4 text-left">
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-4">E-mail Cadastrado</label>
+        <form onSubmit={handleSubmit} className="space-y-6 text-left">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-4">E-mail de Aluno</label>
             <input 
               type="email" 
               value={email} 
               onChange={e => setEmail(e.target.value)} 
               placeholder="seu@email.com" 
-              className="w-full p-4 bg-[#fdfaf5] border border-[#efe9e0] rounded-2xl outline-none focus:ring-2 focus:ring-[#e67e22] transition-all" 
+              className="w-full p-4 bg-gray-50 border border-stone-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#e67e22] transition-all" 
               required 
             />
           </div>
@@ -65,13 +65,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <button 
             type="submit" 
             disabled={isLoading}
-            className="w-full py-5 bg-[#e67e22] hover:bg-[#d35400] text-white rounded-2xl font-bold shadow-xl shadow-orange-100 transition-all active:scale-95 disabled:opacity-50"
+            className="w-full py-5 bg-[#e67e22] hover:bg-[#d35400] text-white rounded-2xl font-bold shadow-xl shadow-orange-900/10 transition-all active:scale-95 disabled:opacity-50"
           >
-            {isLoading ? 'Conectando...' : 'Iniciar Prática'}
+            {isLoading ? 'Autenticando...' : 'Entrar no Tapetinho'}
           </button>
         </form>
         
-        <div className="mt-12 pt-8 border-t border-gray-50">
+        <div className="mt-12 pt-8 border-t border-stone-50">
           <p className="text-[9px] uppercase font-black tracking-[0.3em] text-[#4a6741] opacity-40">Respire • Pratique • Evolua</p>
         </div>
       </div>

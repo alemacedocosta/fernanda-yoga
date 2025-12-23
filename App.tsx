@@ -8,7 +8,7 @@ import { db } from './services/dbService';
 
 /**
  * FERNANDA YOGA - PORTAL DO ALUNO
- * MVP 1.0 - Baseline Estável
+ * MVP 1.0 - Baseline Estável (Com Assistente Maya IA)
  */
 
 const App: React.FC = () => {
@@ -296,6 +296,9 @@ const App: React.FC = () => {
         )}
       </main>
 
+      {/* Assistente de IA disponível para alunos */}
+      {!isAdmin && <AIAssistant availableClasses={yogaClasses} />}
+
       {selectedClass && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
           <div className="w-full max-w-5xl bg-white rounded-[3rem] overflow-hidden shadow-2xl">
@@ -304,7 +307,7 @@ const App: React.FC = () => {
               <button onClick={() => setSelectedClass(null)} className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">✕</button>
             </div>
             <div className="aspect-video bg-black">
-              <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${selectedClass.youtubeId}?autoplay=1`} allowFullScreen />
+              <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${selectedClass.youtubeId}?autoplay=1`} allowFullScreen title={selectedClass.title} />
             </div>
             <div className="p-8 flex justify-end gap-4">
                <button 
@@ -317,8 +320,6 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-
-      {!showAdmin && <AIAssistant availableClasses={yogaClasses} />}
     </div>
   );
 };

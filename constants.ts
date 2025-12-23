@@ -6,8 +6,7 @@ export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 export const ADMIN_EMAIL = 'admin@zenyoga.com';
 
 /**
- * LOGO_URL: Representação SVG da logo minimalista de yoga enviada no anexo.
- * Definida como Base64 para garantir carregamento instantâneo e offline.
+ * LOGO_URL: Representação SVG da logo minimalista.
  */
 const svgLogo = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">

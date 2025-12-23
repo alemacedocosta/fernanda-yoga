@@ -30,6 +30,9 @@ export interface User {
   completedClasses?: string[];
 }
 
+/**
+ * Interface for messages exchanged with the Maya AI assistant.
+ */
 export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
