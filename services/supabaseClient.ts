@@ -1,19 +1,15 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 
-/**
- * IMPORTANTE: Para que o app funcione para todos, as variáveis SUPABASE_URL 
- * e SUPABASE_ANON_KEY devem estar configuradas no painel da Vercel.
- */
+// No ambiente de preview do editor, process.env pode não estar disponível.
+// Em produção (Vercel), estas variáveis devem ser configuradas no painel do projeto.
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
-
-// Cliente Supabase instanciado apenas com variáveis de sistema
 export const supabase = (supabaseUrl && supabaseAnonKey) 
   ? createClient(supabaseUrl, supabaseAnonKey) 
   : null;
 
 if (!supabase) {
-  console.warn("⚠️ Fernanda Yoga: Chaves de API não detectadas no ambiente. O app pode não carregar dados.");
+  console.warn("⚠️ Supabase: Chaves não detectadas. Se você estiver no modo Preview, isso é normal. Para o site funcionar online, configure as Environment Variables SUPABASE_URL e SUPABASE_ANON_KEY no seu servidor (ex: Vercel).");
 }
