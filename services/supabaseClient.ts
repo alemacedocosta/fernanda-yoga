@@ -1,30 +1,19 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 
-// Tenta buscar de várias fontes: Variáveis de ambiente (Vercel) ou LocalStorage (Configuração manual no app)
-const getCredential = (key: string): string => {
-  try {
-    return (
-      (typeof process !== 'undefined' && process.env?.[key]) ||
-      (typeof process !== 'undefined' && process.env?.[`VITE_${key}`]) ||
-      localStorage.getItem(`ZENYOGA_CFG_${key}`) ||
-      ''
-    );
-  } catch {
-    return '';
-  }
-};
+/**
+ * IMPORTANTE: Para que o app funcione para todos, as variáveis SUPABASE_URL 
+ * e SUPABASE_ANON_KEY devem estar configuradas no painel da Vercel.
+ */
 
-const supabaseUrl = getCredential('SUPABASE_URL');
-const supabaseAnonKey = getCredential('SUPABASE_ANON_KEY');
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 
-// O cliente só será instanciado se as chaves existirem
+// Cliente Supabase instanciado apenas com variáveis de sistema
 export const supabase = (supabaseUrl && supabaseAnonKey) 
   ? createClient(supabaseUrl, supabaseAnonKey) 
   : null;
 
-if (supabase) {
-  console.log("✅ Fernanda Yoga: Conectado ao Supabase.");
-} else {
-  console.log("ℹ️ Fernanda Yoga: Rodando em modo Local (sem chaves detectadas).");
+if (!supabase) {
+  console.warn("⚠️ Fernanda Yoga: Chaves de API não detectadas no ambiente. O app pode não carregar dados.");
 }

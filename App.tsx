@@ -17,12 +17,8 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [adminTab, setAdminTab] = useState<'alunos' | 'aulas' | 'config'>('alunos');
+  const [adminTab, setAdminTab] = useState<'alunos' | 'aulas'>('alunos');
   
-  // States para configuração manual do Supabase
-  const [cfgUrl, setCfgUrl] = useState('');
-  const [cfgKey, setCfgKey] = useState('');
-
   const [newEmail, setNewEmail] = useState('');
   const [newClass, setNewClass] = useState<Partial<YogaClass>>({
     category: YogaCategory.HATHA,
@@ -43,41 +39,19 @@ const App: React.FC = () => {
       setAllowedEmails(emails);
       setYogaClasses(classes);
     } catch (err) {
-      console.error("Erro ao carregar dados do banco:", err);
+      console.error("Erro ao carregar dados:", err);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('zenyoga_user');
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      setUser(parsedUser);
-      setCompletedIds(parsedUser.completedClasses || []);
-    }
     loadData();
   }, []);
 
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem('zenyoga_user', JSON.stringify({ ...user, completedClasses: completedIds }));
-    }
-  }, [completedIds, user]);
-
   const handleLogin = (email: string) => {
     const name = email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1);
-    const loggedUser = { email, name, isLoggedIn: true, completedClasses: [] };
-    setUser(loggedUser);
-    localStorage.setItem('zenyoga_user', JSON.stringify(loggedUser));
-  };
-
-  const handleSaveConfig = () => {
-    if (!cfgUrl || !cfgKey) return;
-    localStorage.setItem('ZENYOGA_CFG_SUPABASE_URL', cfgUrl.trim());
-    localStorage.setItem('ZENYOGA_CFG_SUPABASE_ANON_KEY', cfgKey.trim());
-    alert("Configurações salvas! A página será reiniciada para conectar.");
-    window.location.reload();
+    setUser({ email, name, isLoggedIn: true, completedClasses: [] });
   };
 
   const extractYouTubeId = (url: string) => {
@@ -158,17 +132,17 @@ const App: React.FC = () => {
     <div className="min-h-screen pb-24">
       <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-[#f0f4f1] px-4 md:px-8 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveCategory('Todas')}>
-            <div className="w-10 h-10 bg-[#4a6741] rounded-xl flex items-center justify-center text-white text-xl shadow-inner">🧘‍♀️</div>
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveCategory('Todas')}>
+            <img src="https://raw.githubusercontent.com/fboliveira/fboliveira.github.io/main/yoga-logo.png" alt="Fernanda Yoga" className="w-12 h-12 object-contain" />
             <span className="text-xl font-bold text-[#2d3a2a] serif tracking-tight hidden sm:block">Fernanda Yoga</span>
           </div>
           <div className="flex items-center gap-4">
             {isAdmin && (
-              <button onClick={() => setShowAdminPanel(true)} className="flex items-center gap-2 px-4 py-2 bg-[#4a6741] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#3d5435] transition-all hover:scale-105 active:scale-95">
-                Painel Admin
+              <button onClick={() => setShowAdminPanel(true)} className="flex items-center gap-2 px-4 py-2 bg-[#4a6741] text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#3d5435] transition-all">
+                Administração
               </button>
             )}
-            <button onClick={() => { localStorage.removeItem('zenyoga_user'); setUser(null); }} className="p-2 text-[#6b7c67] hover:bg-[#f0f4f1] rounded-full transition-colors">
+            <button onClick={() => setUser(null)} className="p-2 text-[#6b7c67] hover:bg-[#f0f4f1] rounded-full transition-colors font-bold text-sm">
               Sair
             </button>
           </div>
@@ -179,7 +153,7 @@ const App: React.FC = () => {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <div className="w-12 h-12 border-4 border-[#4a6741] border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-[#8a9b86] font-medium animate-pulse">Iniciando sua jornada...</p>
+            <p className="text-[#8a9b86] font-medium animate-pulse">Conectando ao seu portal...</p>
           </div>
         ) : (
           <>
@@ -196,7 +170,7 @@ const App: React.FC = () => {
               </div>
               <div className="flex-1 text-center md:text-left">
                 <h2 className="text-2xl font-bold text-[#2d3a2a] mb-2 serif">Olá, {user.name}</h2>
-                <p className="text-[#6b7c67]">Você já completou {completedIds.length} das {yogaClasses.length} práticas disponíveis.</p>
+                <p className="text-[#6b7c67]">Você já completou {completedIds.length} das {yogaClasses.length} práticas disponíveis nesta sessão.</p>
               </div>
             </section>
 
@@ -210,7 +184,7 @@ const App: React.FC = () => {
 
             {filteredClasses.length === 0 ? (
               <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-[#efe9e0]">
-                <p className="text-[#8a9b86]">Ainda não há aulas nesta categoria.</p>
+                <p className="text-[#8a9b86]">Ainda não há aulas disponíveis nesta categoria.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -228,59 +202,47 @@ const App: React.FC = () => {
           <div className="w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-6 border-b flex justify-between items-center bg-[#fdfaf5]">
               <div>
-                <h2 className="text-xl font-bold serif text-[#2d3a2a]">Administração</h2>
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${db.isConnected() ? 'bg-green-500' : 'bg-amber-500'}`}></span>
-                  <p className="text-[10px] text-[#8a9b86] uppercase font-bold tracking-wider">
-                    {db.isConnected() ? 'Banco de Dados Online' : 'Modo Offline (LocalStorage)'}
-                  </p>
-                </div>
+                <h2 className="text-xl font-bold serif text-[#2d3a2a]">Painel Administrativo</h2>
+                <p className="text-[10px] text-[#4a6741] uppercase font-bold tracking-wider">Sistema de Gerenciamento Online</p>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => db.exportBackup()} className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors">
-                  Backup 📥
-                </button>
-                <button onClick={() => setShowAdminPanel(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400">✕</button>
-              </div>
+              <button onClick={() => setShowAdminPanel(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400">✕</button>
             </div>
             <div className="flex border-b">
-              <button onClick={() => setAdminTab('alunos')} className={`flex-1 py-4 font-bold transition-colors ${adminTab === 'alunos' ? 'text-[#4a6741] border-b-2 border-[#4a6741]' : 'text-gray-400 hover:text-gray-600'}`}>Alunos</button>
-              <button onClick={() => setAdminTab('aulas')} className={`flex-1 py-4 font-bold transition-colors ${adminTab === 'aulas' ? 'text-[#4a6741] border-b-2 border-[#4a6741]' : 'text-gray-400 hover:text-gray-600'}`}>Aulas</button>
-              <button onClick={() => setAdminTab('config')} className={`flex-1 py-4 font-bold transition-colors ${adminTab === 'config' ? 'text-[#4a6741] border-b-2 border-[#4a6741]' : 'text-gray-400 hover:text-gray-600'}`}>⚙️</button>
+              <button onClick={() => setAdminTab('alunos')} className={`flex-1 py-4 font-bold transition-colors ${adminTab === 'alunos' ? 'text-[#4a6741] border-b-2 border-[#4a6741]' : 'text-gray-400 hover:text-gray-600'}`}>Alunos Autorizados</button>
+              <button onClick={() => setAdminTab('aulas')} className={`flex-1 py-4 font-bold transition-colors ${adminTab === 'aulas' ? 'text-[#4a6741] border-b-2 border-[#4a6741]' : 'text-gray-400 hover:text-gray-600'}`}>Catálogo de Aulas</button>
             </div>
             <div className="p-8 overflow-y-auto bg-white">
               {adminTab === 'alunos' ? (
                 <div>
-                  <h3 className="font-bold mb-4 text-sm text-gray-500 uppercase tracking-wider">Autorizar Novo Aluno</h3>
                   <form onSubmit={handleAddAluno} className="flex gap-2 mb-8">
-                    <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="Email..." className="flex-1 p-3 border border-[#efe9e0] rounded-xl outline-none focus:ring-2 focus:ring-[#4a6741]" required />
-                    <button type="submit" className="px-6 bg-[#4a6741] text-white rounded-xl font-bold hover:bg-[#3d5435] transition-colors">Adicionar</button>
+                    <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="Email do novo aluno..." className="flex-1 p-3 border border-[#efe9e0] rounded-xl outline-none focus:ring-2 focus:ring-[#4a6741]" required />
+                    <button type="submit" className="px-6 bg-[#4a6741] text-white rounded-xl font-bold hover:bg-[#3d5435] transition-colors">Autorizar</button>
                   </form>
                   <div className="space-y-2">
                     {allowedEmails.map(e => (
                       <div key={e} className="flex justify-between items-center p-4 bg-gray-50 rounded-xl border border-[#efe9e0]">
                         <span className="text-gray-700 font-medium">{e}</span> 
-                        {e !== ADMIN_EMAIL && <button onClick={() => handleDeleteAluno(e)} className="text-red-400 font-bold p-2">✕</button>}
+                        {e !== ADMIN_EMAIL && <button onClick={() => handleDeleteAluno(e)} className="text-red-400 font-bold p-2 hover:bg-red-50 rounded-lg">✕</button>}
                       </div>
                     ))}
                   </div>
                 </div>
-              ) : adminTab === 'aulas' ? (
+              ) : (
                 <div>
                   <form onSubmit={handleAddClass} className="space-y-4 mb-8 p-6 bg-gray-100/50 rounded-2xl border border-[#efe9e0]">
-                    <input type="text" placeholder="Nome da Aula" value={newClass.title || ''} onChange={e => setNewClass({...newClass, title: e.target.value})} className="w-full p-3 border border-white rounded-xl shadow-sm outline-none" required />
-                    <input type="text" placeholder="Link do YouTube" value={newClass.youtubeId || ''} onChange={e => setNewClass({...newClass, youtubeId: e.target.value})} className="w-full p-3 border border-white rounded-xl shadow-sm outline-none" required />
+                    <input type="text" placeholder="Título da Prática" value={newClass.title || ''} onChange={e => setNewClass({...newClass, title: e.target.value})} className="w-full p-3 border border-white rounded-xl shadow-sm outline-none" required />
+                    <input type="text" placeholder="URL do YouTube" value={newClass.youtubeId || ''} onChange={e => setNewClass({...newClass, youtubeId: e.target.value})} className="w-full p-3 border border-white rounded-xl shadow-sm outline-none" required />
                     <div className="grid grid-cols-2 gap-4">
-                      <select value={newClass.category} onChange={e => setNewClass({...newClass, category: e.target.value as YogaCategory})} className="p-3 bg-white border-white rounded-xl outline-none shadow-sm">
+                      <select value={newClass.category} onChange={e => setNewClass({...newClass, category: e.target.value as YogaCategory})} className="p-3 bg-white border-white rounded-xl outline-none shadow-sm font-semibold text-gray-600">
                         {Object.values(YogaCategory).map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
-                      <select value={newClass.level} onChange={e => setNewClass({...newClass, level: e.target.value as any})} className="p-3 bg-white border-white rounded-xl outline-none shadow-sm">
+                      <select value={newClass.level} onChange={e => setNewClass({...newClass, level: e.target.value as any})} className="p-3 bg-white border-white rounded-xl outline-none shadow-sm font-semibold text-gray-600">
                         <option value="Iniciante">Iniciante</option>
                         <option value="Intermediário">Intermediário</option>
                         <option value="Avançado">Avançado</option>
                       </select>
                     </div>
-                    <button type="submit" className="w-full py-4 bg-[#4a6741] text-white rounded-xl font-bold">Salvar Prática Globalmente</button>
+                    <button type="submit" className="w-full py-4 bg-[#4a6741] text-white rounded-xl font-bold shadow-lg shadow-green-100">Adicionar à Grade Curricular</button>
                   </form>
                   <div className="space-y-3">
                     {yogaClasses.map(c => (
@@ -293,46 +255,6 @@ const App: React.FC = () => {
                       </div>
                     ))}
                   </div>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 text-amber-800 text-sm">
-                    <strong>Modo Preview:</strong> Como as variáveis da Vercel não funcionam aqui no editor, você pode configurar sua conexão manualmente abaixo. Isso ficará salvo apenas no seu navegador.
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Supabase URL</label>
-                    <input 
-                      type="text" 
-                      value={cfgUrl} 
-                      onChange={e => setCfgUrl(e.target.value)}
-                      placeholder="https://xyz.supabase.co" 
-                      className="w-full p-3 border border-[#efe9e0] rounded-xl outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Supabase Anon Key</label>
-                    <input 
-                      type="password" 
-                      value={cfgKey} 
-                      onChange={e => setCfgKey(e.target.value)}
-                      placeholder="eyJhbGciOiJIUzI1Ni..." 
-                      className="w-full p-3 border border-[#efe9e0] rounded-xl outline-none"
-                    />
-                  </div>
-                  <button 
-                    onClick={handleSaveConfig}
-                    className="w-full py-4 bg-black text-white rounded-xl font-bold hover:bg-gray-800 transition-all"
-                  >
-                    Conectar Agora ⚡️
-                  </button>
-                  {db.isConnected() && (
-                    <button 
-                      onClick={() => { localStorage.removeItem('ZENYOGA_CFG_SUPABASE_URL'); localStorage.removeItem('ZENYOGA_CFG_SUPABASE_ANON_KEY'); window.location.reload(); }}
-                      className="w-full py-2 text-red-500 text-xs font-bold"
-                    >
-                      Limpar Configuração Manual
-                    </button>
-                  )}
                 </div>
               )}
             </div>
