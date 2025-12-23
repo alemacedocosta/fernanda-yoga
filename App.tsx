@@ -17,8 +17,12 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [adminTab, setAdminTab] = useState<'alunos' | 'aulas'>('alunos');
+  const [adminTab, setAdminTab] = useState<'alunos' | 'aulas' | 'config'>('alunos');
   
+  // States para configuração manual do Supabase
+  const [cfgUrl, setCfgUrl] = useState('');
+  const [cfgKey, setCfgKey] = useState('');
+
   const [newEmail, setNewEmail] = useState('');
   const [newClass, setNewClass] = useState<Partial<YogaClass>>({
     category: YogaCategory.HATHA,
@@ -66,6 +70,14 @@ const App: React.FC = () => {
     const loggedUser = { email, name, isLoggedIn: true, completedClasses: [] };
     setUser(loggedUser);
     localStorage.setItem('zenyoga_user', JSON.stringify(loggedUser));
+  };
+
+  const handleSaveConfig = () => {
+    if (!cfgUrl || !cfgKey) return;
+    localStorage.setItem('ZENYOGA_CFG_SUPABASE_URL', cfgUrl.trim());
+    localStorage.setItem('ZENYOGA_CFG_SUPABASE_ANON_KEY', cfgKey.trim());
+    alert("Configurações salvas! A página será reiniciada para conectar.");
+    window.location.reload();
   };
 
   const extractYouTubeId = (url: string) => {
@@ -234,6 +246,7 @@ const App: React.FC = () => {
             <div className="flex border-b">
               <button onClick={() => setAdminTab('alunos')} className={`flex-1 py-4 font-bold transition-colors ${adminTab === 'alunos' ? 'text-[#4a6741] border-b-2 border-[#4a6741]' : 'text-gray-400 hover:text-gray-600'}`}>Alunos</button>
               <button onClick={() => setAdminTab('aulas')} className={`flex-1 py-4 font-bold transition-colors ${adminTab === 'aulas' ? 'text-[#4a6741] border-b-2 border-[#4a6741]' : 'text-gray-400 hover:text-gray-600'}`}>Aulas</button>
+              <button onClick={() => setAdminTab('config')} className={`flex-1 py-4 font-bold transition-colors ${adminTab === 'config' ? 'text-[#4a6741] border-b-2 border-[#4a6741]' : 'text-gray-400 hover:text-gray-600'}`}>⚙️</button>
             </div>
             <div className="p-8 overflow-y-auto bg-white">
               {adminTab === 'alunos' ? (
@@ -252,7 +265,7 @@ const App: React.FC = () => {
                     ))}
                   </div>
                 </div>
-              ) : (
+              ) : adminTab === 'aulas' ? (
                 <div>
                   <form onSubmit={handleAddClass} className="space-y-4 mb-8 p-6 bg-gray-100/50 rounded-2xl border border-[#efe9e0]">
                     <input type="text" placeholder="Nome da Aula" value={newClass.title || ''} onChange={e => setNewClass({...newClass, title: e.target.value})} className="w-full p-3 border border-white rounded-xl shadow-sm outline-none" required />
@@ -280,6 +293,46 @@ const App: React.FC = () => {
                       </div>
                     ))}
                   </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 text-amber-800 text-sm">
+                    <strong>Modo Preview:</strong> Como as variáveis da Vercel não funcionam aqui no editor, você pode configurar sua conexão manualmente abaixo. Isso ficará salvo apenas no seu navegador.
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Supabase URL</label>
+                    <input 
+                      type="text" 
+                      value={cfgUrl} 
+                      onChange={e => setCfgUrl(e.target.value)}
+                      placeholder="https://xyz.supabase.co" 
+                      className="w-full p-3 border border-[#efe9e0] rounded-xl outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Supabase Anon Key</label>
+                    <input 
+                      type="password" 
+                      value={cfgKey} 
+                      onChange={e => setCfgKey(e.target.value)}
+                      placeholder="eyJhbGciOiJIUzI1Ni..." 
+                      className="w-full p-3 border border-[#efe9e0] rounded-xl outline-none"
+                    />
+                  </div>
+                  <button 
+                    onClick={handleSaveConfig}
+                    className="w-full py-4 bg-black text-white rounded-xl font-bold hover:bg-gray-800 transition-all"
+                  >
+                    Conectar Agora ⚡️
+                  </button>
+                  {db.isConnected() && (
+                    <button 
+                      onClick={() => { localStorage.removeItem('ZENYOGA_CFG_SUPABASE_URL'); localStorage.removeItem('ZENYOGA_CFG_SUPABASE_ANON_KEY'); window.location.reload(); }}
+                      className="w-full py-2 text-red-500 text-xs font-bold"
+                    >
+                      Limpar Configuração Manual
+                    </button>
+                  )}
                 </div>
               )}
             </div>
