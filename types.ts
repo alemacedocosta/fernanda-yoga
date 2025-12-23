@@ -1,3 +1,7 @@
+/**
+ * FERNANDA YOGA - MVP 1.0 (Stable)
+ * Centralização de tipos e Enums
+ */
 
 export enum YogaCategory {
   HATHA = 'Hatha Yoga',

@@ -1,353 +1,324 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import Login from './components/Login';
 import VideoCard from './components/VideoCard';
 import AIAssistant from './components/AIAssistant';
-import { ADMIN_EMAIL } from './constants';
+import { ADMIN_EMAIL, LOGO_URL } from './constants';
 import { User, YogaClass, YogaCategory } from './types';
 import { db } from './services/dbService';
 
-// Logo Oficial - Usando a URL do GitHub Pages que é mais estável para previews
-const Logo = ({ className = "w-12 h-12" }) => (
-  <img 
-    src="https://fboliveira.github.io/yoga-logo.png" 
-    alt="Fernanda Yoga Logo" 
-    className={`${className} object-contain`}
-    loading="eager"
-    onError={(e) => {
-      // Se a URL do Pages falhar, tenta o link raw como fallback
-      if (e.currentTarget.src !== "https://raw.githubusercontent.com/fboliveira/fboliveira.github.io/main/yoga-logo.png") {
-        e.currentTarget.src = "https://raw.githubusercontent.com/fboliveira/fboliveira.github.io/main/yoga-logo.png";
-      }
-    }}
-  />
-);
+/**
+ * FERNANDA YOGA - PORTAL DO ALUNO
+ * MVP 1.0 - Baseline Estável
+ */
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [selectedClass, setSelectedClass] = useState<YogaClass | null>(null);
-  const [activeCategory, setActiveCategory] = useState<YogaCategory | 'Todas' | 'Concluídas'>('Todas');
-  const [completedIds, setCompletedIds] = useState<string[]>([]);
-  
-  const [allowedEmails, setAllowedEmails] = useState<string[]>([]);
   const [yogaClasses, setYogaClasses] = useState<YogaClass[]>([]);
+  const [allowedEmails, setAllowedEmails] = useState<string[]>([]);
+  const [completedIds, setCompletedIds] = useState<string[]>([]);
+  const [selectedClass, setSelectedClass] = useState<YogaClass | null>(null);
+  const [activeCategory, setActiveCategory] = useState<YogaCategory | 'Todas'>('Todas');
   const [isLoading, setIsLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
-  const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [adminTab, setAdminTab] = useState<'alunos' | 'aulas'>('alunos');
-  
+  const [showAdmin, setShowAdmin] = useState(false);
   const [newEmail, setNewEmail] = useState('');
-  const [newClass, setNewClass] = useState<Partial<YogaClass>>({
+  const [isSaving, setIsSaving] = useState(false);
+  const [newClass, setNewClass] = useState({
     title: '',
-    youtubeId: '',
-    description: '',
+    youtubeUrl: '',
     category: YogaCategory.HATHA,
-    level: 'Iniciante',
-    duration: '20 min'
+    level: 'Iniciante' as const,
+    duration: '30 min'
   });
 
-  const loadData = async () => {
-    setErrorMsg(null);
-    if (!db.isConnected()) {
-      setIsLoading(false);
-      setErrorMsg("Modo de Demonstração (Offline). Configure as chaves SUPABASE_URL e SUPABASE_ANON_KEY no seu servidor para ativar o banco de dados.");
-      return;
-    }
+  const isAdmin = useMemo(() => user?.email.toLowerCase().trim() === ADMIN_EMAIL.toLowerCase().trim(), [user]);
 
+  const loadInitialData = async (userEmail?: string) => {
     setIsLoading(true);
     try {
-      const [emails, classes] = await Promise.all([
-        db.getAlunos(),
-        db.getClasses()
+      const [classes, emails] = await Promise.all([
+        db.getClasses(),
+        db.getAlunos()
       ]);
-      setAllowedEmails(emails);
       setYogaClasses(classes);
-    } catch (err: any) {
+      setAllowedEmails(emails);
+
+      if (userEmail) {
+        const progress = await db.getUserProgress(userEmail);
+        setCompletedIds(progress);
+      }
+    } catch (err) {
       console.error("Erro ao carregar dados:", err);
-      setErrorMsg(`Erro de conexão: ${err.message || 'Verifique suas chaves do Supabase'}`);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user) {
+      loadInitialData(user.email);
+    }
+  }, [user?.email]);
 
   const handleLogin = (email: string) => {
-    const name = email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1);
-    setUser({ email, name, isLoggedIn: true, completedClasses: [] });
+    setShowAdmin(false);
+    setUser({ email, name: email.split('@')[0], isLoggedIn: true });
   };
 
-  const toggleCompletion = (id: string, e?: React.MouseEvent) => {
+  const handleLogout = () => {
+    setUser(null);
+    setShowAdmin(false);
+    setCompletedIds([]);
+  };
+
+  const toggleComplete = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setCompletedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
-  };
+    if (!user) return;
 
-  const progressPercentage = useMemo(() => {
-    if (yogaClasses.length === 0) return 0;
-    return Math.round((completedIds.length / yogaClasses.length) * 100);
-  }, [completedIds, yogaClasses]);
+    const currentlyCompleted = completedIds.includes(id);
+    const newIds = currentlyCompleted 
+      ? completedIds.filter(i => i !== id) 
+      : [...completedIds, id];
+    setCompletedIds(newIds);
+
+    try {
+      await db.toggleProgress(user.email, id, currentlyCompleted);
+    } catch (err) {
+      setCompletedIds(completedIds);
+      alert("Erro ao salvar progresso.");
+    }
+  };
 
   const filteredClasses = useMemo(() => {
-    let classes = yogaClasses;
-    if (activeCategory === 'Concluídas') {
-      classes = yogaClasses.filter(c => completedIds.includes(c.id));
-    } else if (activeCategory !== 'Todas') {
-      classes = yogaClasses.filter(c => c.category === activeCategory);
-    }
-    return classes;
-  }, [activeCategory, completedIds, yogaClasses]);
+    return activeCategory === 'Todas' 
+      ? yogaClasses 
+      : yogaClasses.filter(c => c.category === activeCategory);
+  }, [yogaClasses, activeCategory]);
 
-  const handleAddClass = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!db.isConnected()) {
-      alert("Erro: Banco de dados não conectado.");
-      return;
-    }
-    
-    if (!newClass.title || !newClass.youtubeId) {
-      alert("Preencha o título e o ID do vídeo.");
-      return;
-    }
-    
-    setIsLoading(true);
-    try {
-      let ytId = newClass.youtubeId || '';
-      if (ytId.includes('v=')) ytId = ytId.split('v=')[1].split('&')[0];
-      if (ytId.includes('youtu.be/')) ytId = ytId.split('youtu.be/')[1].split('?')[0];
-
-      const classToAdd: YogaClass = {
-        id: Date.now().toString(),
-        title: newClass.title,
-        description: newClass.description || 'Prática de yoga guiada.',
-        youtubeId: ytId.trim(),
-        category: newClass.category as YogaCategory,
-        duration: newClass.duration || '20 min',
-        level: newClass.level as any,
-        thumbnailUrl: `https://img.youtube.com/vi/${ytId.trim()}/maxresdefault.jpg`
-      };
-      
-      const updated = await db.saveClass(classToAdd);
-      setYogaClasses(updated);
-      setNewClass({ title: '', youtubeId: '', description: '', category: YogaCategory.HATHA, level: 'Iniciante', duration: '20 min' });
-      alert("Aula cadastrada com sucesso!");
-    } catch (err: any) {
-      alert(`Erro ao salvar: ${err.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteClass = async (id: string) => {
-    if (window.confirm("Deseja realmente excluir esta aula?")) {
-      try {
-        const updated = await db.deleteClass(id);
-        setYogaClasses(updated);
-      } catch (err) {
-        alert("Erro ao excluir.");
-      }
-    }
-  };
+  const progressPercentage = yogaClasses.length > 0 
+    ? Math.round((completedIds.length / yogaClasses.length) * 100)
+    : 0;
 
   const handleAddAluno = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEmail) return;
     try {
-      const updated = await db.saveAluno(newEmail);
-      setAllowedEmails(updated);
+      await db.saveAluno(newEmail);
+      setAllowedEmails(await db.getAlunos());
       setNewEmail('');
-      alert("Aluno autorizado!");
-    } catch (err: any) {
-      alert(`Erro ao adicionar: ${err.message}`);
-    }
+    } catch (err) { alert("Erro ao adicionar aluno."); }
   };
 
-  const handleDeleteAluno = async (email: string) => {
-    if (email === ADMIN_EMAIL) return;
-    if (window.confirm(`Remover acesso de ${email}?`)) {
-      try {
-        const updated = await db.deleteAluno(email);
-        setAllowedEmails(updated);
-      } catch (err) {
-        alert("Erro ao remover.");
-      }
+  const handleDeleteClass = async (id: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta aula?")) return;
+    try {
+      await db.deleteClass(id);
+      setYogaClasses(await db.getClasses());
+    } catch (err) { alert("Erro ao excluir aula."); }
+  };
+
+  const handleAddClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      let ytId = newClass.youtubeUrl;
+      if (ytId.includes('v=')) ytId = ytId.split('v=')[1].split('&')[0];
+      else if (ytId.includes('youtu.be/')) ytId = ytId.split('youtu.be/')[1].split('?')[0];
+
+      const payload = {
+        id: Date.now().toString(),
+        title: newClass.title,
+        youtubeId: ytId.trim(),
+        category: newClass.category,
+        level: newClass.level,
+        duration: newClass.duration,
+        description: 'Aula de yoga guiada.',
+        thumbnailUrl: `https://img.youtube.com/vi/${ytId.trim()}/maxresdefault.jpg`
+      };
+
+      await db.saveClass(payload);
+      setYogaClasses(await db.getClasses());
+      setNewClass({ title: '', youtubeUrl: '', category: YogaCategory.HATHA, level: 'Iniciante', duration: '30 min' });
+    } catch (err) {
+      alert("Erro ao publicar aula.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
   if (!user) return <Login onLogin={handleLogin} />;
-  const isAdmin = user.email === ADMIN_EMAIL;
 
   return (
-    <div className="min-h-screen pb-24">
-      <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-[#f0f4f1] px-4 md:px-8 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveCategory('Todas')}>
-            <Logo className="w-14 h-14" />
-            <span className="text-xl font-bold text-[#2d3a2a] serif tracking-tight hidden sm:block">Fernanda Yoga</span>
+    <div className="min-h-screen bg-[#fdfaf5] text-[#2d3a2a]">
+      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-[#efe9e0] px-6 py-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <img src={LOGO_URL} alt="Logo" className="w-10 h-10" />
+            <h1 className="serif font-bold text-xl hidden sm:block">Fernanda Yoga</h1>
           </div>
           <div className="flex items-center gap-4">
             {isAdmin && (
-              <button onClick={() => setShowAdminPanel(true)} className="px-4 py-2 bg-[#e67e22] text-white rounded-xl text-sm font-bold shadow-lg hover:bg-[#d35400] transition-all">
-                Painel Admin
+              <button 
+                onClick={() => setShowAdmin(!showAdmin)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${showAdmin ? 'bg-orange-500 text-white' : 'bg-[#4a6741] text-white shadow-lg'}`}
+              >
+                {showAdmin ? 'Sair do Painel' : 'Gerenciar App'}
               </button>
             )}
-            <button onClick={() => setUser(null)} className="p-2 text-[#6b7c67] hover:bg-gray-100 rounded-lg font-bold text-sm transition-colors">
-              Sair
-            </button>
+            <button onClick={handleLogout} className="text-sm font-bold text-gray-400 hover:text-red-500 transition-colors">Sair</button>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 md:py-12">
-        {errorMsg && (
-          <div className="mb-8 p-6 bg-orange-50 border border-orange-100 text-orange-800 rounded-3xl text-center font-medium shadow-sm">
-            <p className="mb-2 font-bold text-lg">⚠️ Sistema em espera</p>
-            <p className="text-sm opacity-80">{errorMsg}</p>
-          </div>
-        )}
+      <main className="max-w-7xl mx-auto px-6 py-10">
+        {isAdmin && showAdmin ? (
+          <div className="space-y-12 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <section className="bg-white p-8 rounded-[2.5rem] border border-[#efe9e0] shadow-sm">
+                <h3 className="text-xl font-bold serif mb-6 flex items-center gap-2">Autorizar Alunos</h3>
+                <form onSubmit={handleAddAluno} className="flex gap-2 mb-6">
+                  <input 
+                    type="email" 
+                    placeholder="E-mail do novo aluno" 
+                    value={newEmail}
+                    onChange={e => setNewEmail(e.target.value)}
+                    className="flex-1 p-4 bg-gray-50 border border-[#efe9e0] rounded-2xl outline-none"
+                  />
+                  <button type="submit" className="px-6 bg-[#4a6741] text-white rounded-2xl font-bold">Add</button>
+                </form>
+                <div className="space-y-2 max-h-[250px] overflow-y-auto pr-2">
+                  {allowedEmails.map(email => (
+                    <div key={email} className="flex justify-between items-center p-4 bg-gray-50 rounded-xl border border-gray-100 group">
+                      <span className="text-sm font-medium">{email}</span>
+                      {email.toLowerCase() !== ADMIN_EMAIL.toLowerCase() && (
+                        <button onClick={() => db.deleteAluno(email).then(() => loadInitialData())} className="text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">Remover</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
 
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div className="w-12 h-12 border-4 border-[#e67e22] border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-[#8a9b86] font-medium animate-pulse">Sincronizando com o servidor...</p>
+              <section className="bg-white p-8 rounded-[2.5rem] border border-[#efe9e0] shadow-sm">
+                <h3 className="text-xl font-bold serif mb-6">Cadastrar Aula</h3>
+                <form onSubmit={handleAddClass} className="space-y-4">
+                  <input placeholder="Título" value={newClass.title} onChange={e => setNewClass({...newClass, title: e.target.value})} className="w-full p-4 bg-gray-50 border border-[#efe9e0] rounded-2xl" required />
+                  <input placeholder="URL YouTube" value={newClass.youtubeUrl} onChange={e => setNewClass({...newClass, youtubeUrl: e.target.value})} className="w-full p-4 bg-gray-50 border border-[#efe9e0] rounded-2xl" required />
+                  <div className="grid grid-cols-2 gap-4">
+                    <select value={newClass.category} onChange={e => setNewClass({...newClass, category: e.target.value as YogaCategory})} className="p-4 bg-gray-50 border border-[#efe9e0] rounded-2xl text-sm">
+                      {Object.values(YogaCategory).map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <select value={newClass.level} onChange={e => setNewClass({...newClass, level: e.target.value as any})} className="p-4 bg-gray-50 border border-[#efe9e0] rounded-2xl text-sm">
+                      <option value="Iniciante">Iniciante</option>
+                      <option value="Intermediário">Intermediário</option>
+                      <option value="Avançado">Avançado</option>
+                    </select>
+                  </div>
+                  <button disabled={isSaving} type="submit" className="w-full py-5 bg-[#e67e22] text-white rounded-2xl font-bold">
+                    {isSaving ? 'Salvando...' : 'Publicar'}
+                  </button>
+                </form>
+              </section>
+            </div>
+
+            <section className="bg-white p-10 rounded-[3rem] border border-[#efe9e0] shadow-sm">
+              <h3 className="text-2xl font-bold serif mb-8">Catálogo</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {yogaClasses.map(c => (
+                  <div key={c.id} className="flex flex-col bg-gray-50 rounded-[2rem] border border-gray-100 overflow-hidden group">
+                    <div className="aspect-video relative">
+                      <img src={c.thumbnailUrl} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center">
+                        <button onClick={() => handleDeleteClass(c.id)} className="bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase">Excluir</button>
+                      </div>
+                    </div>
+                    <div className="p-5"><h4 className="font-bold text-sm">{c.title}</h4></div>
+                  </div>
+                ))}
+              </div>
+            </section>
           </div>
         ) : (
           <>
-            <section className="bg-white rounded-[2.5rem] p-6 md:p-10 border border-[#efe9e0] shadow-sm mb-12 flex flex-col md:flex-row items-center gap-8">
-              <div className="relative w-32 h-32 flex-shrink-0">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 128 128">
-                  <circle cx="64" cy="64" r="54" stroke="#f0f4f1" strokeWidth="8" fill="transparent" />
-                  <circle cx="64" cy="64" r="54" stroke="#e67e22" strokeWidth="8" fill="transparent" strokeDasharray={339.29} strokeDashoffset={339.29 - (339.29 * progressPercentage) / 100} strokeLinecap="round" className="transition-all duration-1000 ease-out" />
+            <header className="mb-12 flex flex-col md:flex-row items-center gap-8 bg-white p-8 rounded-[3rem] border border-[#efe9e0] shadow-sm">
+              <div className="relative w-28 h-28 flex-shrink-0">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="45" fill="none" stroke="#f0f4f1" strokeWidth="6" />
+                  <circle cx="50" cy="50" r="45" fill="none" stroke="#e67e22" strokeWidth="6" strokeDasharray="282.7" strokeDashoffset={282.7 - (282.7 * progressPercentage / 100)} strokeLinecap="round" className="transition-all duration-1000" />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-2xl font-bold text-[#2d3a2a]">{progressPercentage}%</span>
-                  <span className="text-[10px] text-[#8a9b86] uppercase font-bold tracking-tighter">Sessão</span>
+                  <span className="text-xl font-black">{progressPercentage}%</span>
                 </div>
               </div>
-              <div className="flex-1 text-center md:text-left">
-                <h2 className="text-2xl font-bold text-[#2d3a2a] mb-2 serif tracking-tight">Namastê, {user.name}</h2>
-                <p className="text-[#6b7c67]">Você visualizou {completedIds.length} das {yogaClasses.length} práticas da sua grade.</p>
+              <div>
+                <h2 className="text-3xl font-bold serif mb-1">Namastê, {user.name}</h2>
+                <p className="text-[#8a9b86] font-medium">Seu progresso é individual e salvo automaticamente em sua conta.</p>
               </div>
-            </section>
+            </header>
 
-            <div className="flex overflow-x-auto pb-6 gap-3 no-scrollbar mb-8">
-              <button onClick={() => setActiveCategory('Todas')} className={`px-6 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${activeCategory === 'Todas' ? 'bg-[#e67e22] text-white shadow-lg' : 'bg-white text-[#6b7c67] border border-[#efe9e0]'}`}>Todas</button>
-              <button onClick={() => setActiveCategory('Concluídas')} className={`px-6 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${activeCategory === 'Concluídas' ? 'bg-[#b8860b] text-white shadow-lg' : 'bg-white text-[#6b7c67] border border-[#efe9e0]'}`}>Concluídas</button>
-              {Object.values(YogaCategory).map((cat) => (
-                <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-6 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${activeCategory === cat ? 'bg-[#e67e22] text-white shadow-lg' : 'bg-white text-[#6b7c67] border border-[#efe9e0]'}`}>{cat}</button>
+            <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar">
+              <button 
+                onClick={() => setActiveCategory('Todas')}
+                className={`px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${activeCategory === 'Todas' ? 'bg-[#e67e22] text-white' : 'bg-white border border-[#efe9e0] text-gray-400'}`}
+              >
+                Todas
+              </button>
+              {Object.values(YogaCategory).map(cat => (
+                <button 
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap ${activeCategory === cat ? 'bg-[#e67e22] text-white' : 'bg-white border border-[#efe9e0] text-gray-400'}`}
+                >
+                  {cat}
+                </button>
               ))}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredClasses.map((yogaClass) => (
-                <VideoCard key={yogaClass.id} yogaClass={yogaClass} isCompleted={completedIds.includes(yogaClass.id)} onToggleComplete={toggleCompletion} onClick={setSelectedClass} />
-              ))}
-            </div>
+            {isLoading ? (
+              <div className="flex justify-center py-20"><div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div></div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {filteredClasses.length > 0 ? filteredClasses.map(c => (
+                  <VideoCard 
+                    key={c.id} 
+                    yogaClass={c} 
+                    isCompleted={completedIds.includes(c.id)} 
+                    onToggleComplete={toggleComplete} 
+                    onClick={setSelectedClass} 
+                  />
+                )) : (
+                  <div className="col-span-full py-20 text-center opacity-40">
+                    <p className="text-lg">Nenhuma aula encontrada.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
       </main>
 
-      <AIAssistant availableClasses={yogaClasses} />
-
-      {showAdminPanel && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-6 border-b flex justify-between items-center bg-[#fdfaf5]">
-              <h2 className="text-xl font-bold serif text-[#2d3a2a]">Administração Online</h2>
-              <button onClick={() => setShowAdminPanel(false)} className="p-2 hover:bg-gray-100 rounded-full text-gray-400">✕</button>
-            </div>
-            <div className="flex border-b">
-              <button onClick={() => setAdminTab('alunos')} className={`flex-1 py-4 font-bold ${adminTab === 'alunos' ? 'text-[#e67e22] border-b-2 border-[#e67e22]' : 'text-gray-400'}`}>Alunos</button>
-              <button onClick={() => setAdminTab('aulas')} className={`flex-1 py-4 font-bold ${adminTab === 'aulas' ? 'text-[#e67e22] border-b-2 border-[#e67e22]' : 'text-gray-400'}`}>Aulas</button>
-            </div>
-            <div className="p-8 overflow-y-auto bg-white">
-              {adminTab === 'alunos' ? (
-                <div>
-                  <form onSubmit={handleAddAluno} className="flex gap-2 mb-8">
-                    <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="Email do novo aluno..." className="flex-1 p-3 border border-[#efe9e0] rounded-xl outline-none focus:ring-2 focus:ring-[#e67e22]" required />
-                    <button type="submit" className="px-6 bg-[#e67e22] text-white rounded-xl font-bold shadow-md">Autorizar</button>
-                  </form>
-                  <div className="space-y-2">
-                    {allowedEmails.map(e => (
-                      <div key={e} className="flex justify-between items-center p-4 bg-gray-50 rounded-xl border border-[#efe9e0]">
-                        <span className="text-gray-700 font-medium">{e}</span> 
-                        {e !== ADMIN_EMAIL && <button onClick={() => handleDeleteAluno(e)} className="text-red-400 font-bold p-2 hover:bg-red-50 rounded-lg">✕</button>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <form onSubmit={handleAddClass} className="space-y-4 p-6 bg-gray-50 rounded-2xl border border-[#efe9e0]">
-                    <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase mb-1 block ml-1">Título da Prática</label>
-                      <input type="text" placeholder="Ex: Despertar Matinal" value={newClass.title || ''} onChange={e => setNewClass({...newClass, title: e.target.value})} className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-[#e67e22]" required />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase mb-1 block ml-1">Link ou ID do YouTube</label>
-                      <input type="text" placeholder="ID do vídeo" value={newClass.youtubeId || ''} onChange={e => setNewClass({...newClass, youtubeId: e.target.value})} className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-[#e67e22]" required />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <select value={newClass.category} onChange={e => setNewClass({...newClass, category: e.target.value as YogaCategory})} className="p-3 border rounded-xl bg-white">
-                        {Object.values(YogaCategory).map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                      <select value={newClass.level} onChange={e => setNewClass({...newClass, level: e.target.value as any})} className="p-3 border rounded-xl bg-white">
-                        <option value="Iniciante">Iniciante</option>
-                        <option value="Intermediário">Intermediário</option>
-                        <option value="Avançado">Avançado</option>
-                      </select>
-                    </div>
-                    <button type="submit" className={`w-full py-4 bg-[#e67e22] text-white rounded-xl font-bold shadow-lg transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`} disabled={isLoading}>
-                      {isLoading ? 'Salvando...' : 'Salvar Prática na Nuvem'}
-                    </button>
-                  </form>
-                  <div className="space-y-3">
-                    {yogaClasses.map(c => (
-                      <div key={c.id} className="flex justify-between items-center p-3 bg-white rounded-xl border border-[#efe9e0]">
-                        <div className="flex items-center gap-3">
-                          <img src={`https://img.youtube.com/vi/${c.youtubeId}/default.jpg`} className="w-12 h-8 rounded object-cover" />
-                          <span className="font-bold text-[#2d3a2a] truncate max-w-[200px] text-sm">{c.title}</span>
-                        </div>
-                        <button onClick={() => handleDeleteClass(c.id)} className="text-gray-300 hover:text-red-500 p-2">✕</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {selectedClass && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
-          <div className="w-full max-w-5xl bg-[#1a1c18] rounded-[2.5rem] overflow-hidden shadow-2xl">
-            <div className="p-6 flex justify-between items-center text-white">
-              <div className="flex flex-col">
-                <span className="text-[10px] text-[#e67e22] uppercase font-black tracking-widest">{selectedClass.category}</span>
-                <h3 className="text-xl font-bold serif">{selectedClass.title}</h3>
-              </div>
-              <button onClick={() => setSelectedClass(null)} className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition-colors">✕</button>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+          <div className="w-full max-w-5xl bg-white rounded-[3rem] overflow-hidden shadow-2xl">
+            <div className="p-6 border-b flex justify-between items-center">
+              <h3 className="text-xl font-bold serif">{selectedClass.title}</h3>
+              <button onClick={() => setSelectedClass(null)} className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">✕</button>
             </div>
             <div className="aspect-video bg-black">
-              <iframe 
-                className="w-full h-full" 
-                src={`https://www.youtube.com/embed/${selectedClass.youtubeId}?autoplay=1&rel=0`} 
-                allowFullScreen
-                allow="autoplay"
-              ></iframe>
+              <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${selectedClass.youtubeId}?autoplay=1`} allowFullScreen />
             </div>
-            <div className="p-8 bg-white flex flex-col md:flex-row justify-between items-center gap-6">
-              <p className="text-[#6b7c67] flex-1 text-lg">{selectedClass.description}</p>
-              <button onClick={() => {toggleCompletion(selectedClass.id); setSelectedClass(null);}} className={`px-8 py-4 rounded-2xl font-bold shadow-xl transition-all ${completedIds.includes(selectedClass.id) ? 'bg-gray-100 text-gray-400' : 'bg-[#e67e22] text-white hover:bg-[#d35400]'}`}>
-                {completedIds.includes(selectedClass.id) ? 'Prática Concluída ✓' : 'Marcar como Concluída'}
-              </button>
+            <div className="p-8 flex justify-end gap-4">
+               <button 
+                onClick={() => { toggleComplete(selectedClass.id); setSelectedClass(null); }}
+                className={`px-8 py-4 rounded-2xl font-bold ${completedIds.includes(selectedClass.id) ? 'bg-gray-100 text-gray-400' : 'bg-[#4a6741] text-white shadow-lg'}`}
+               >
+                 {completedIds.includes(selectedClass.id) ? 'Concluída ✓' : 'Marcar como Concluída'}
+               </button>
             </div>
           </div>
         </div>
       )}
+
+      {!showAdmin && <AIAssistant availableClasses={yogaClasses} />}
     </div>
   );
 };
