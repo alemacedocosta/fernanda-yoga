@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Login from './components/Login';
 import VideoCard from './components/VideoCard';
-import AIAssistant from './components/AIAssistant';
 import { ADMIN_EMAIL } from './constants';
 import { User, YogaClass, YogaCategory } from './types';
 import { db } from './services/dbService';
@@ -15,6 +14,7 @@ const App: React.FC = () => {
   
   const [allowedEmails, setAllowedEmails] = useState<string[]>([]);
   const [yogaClasses, setYogaClasses] = useState<YogaClass[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [adminTab, setAdminTab] = useState<'alunos' | 'aulas'>('alunos');
@@ -29,22 +29,30 @@ const App: React.FC = () => {
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
 
-  useEffect(() => {
+  const loadData = async () => {
+    setIsLoading(true);
     try {
-      const savedUser = localStorage.getItem('zenyoga_user');
-      if (savedUser) {
-        const parsedUser = JSON.parse(savedUser);
-        setUser(parsedUser);
-        setCompletedIds(parsedUser.completedClasses || []);
-      }
-      
-      setAllowedEmails(db.getAlunos());
-      setYogaClasses(db.getClasses());
-    } catch (error) {
-      console.error("Erro ao carregar dados iniciais:", error);
-      // Fallback básico para não travar o app
-      setAllowedEmails([ADMIN_EMAIL]);
+      const [emails, classes] = await Promise.all([
+        db.getAlunos(),
+        db.getClasses()
+      ]);
+      setAllowedEmails(emails);
+      setYogaClasses(classes);
+    } catch (err) {
+      console.error("Erro ao carregar dados do banco:", err);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('zenyoga_user');
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser);
+      setUser(parsedUser);
+      setCompletedIds(parsedUser.completedClasses || []);
+    }
+    loadData();
   }, []);
 
   useEffect(() => {
@@ -86,7 +94,7 @@ const App: React.FC = () => {
     return classes;
   }, [activeCategory, completedIds, yogaClasses]);
 
-  const handleAddClass = (e: React.FormEvent) => {
+  const handleAddClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClass.title || !newClass.youtubeId) return;
     
@@ -103,28 +111,31 @@ const App: React.FC = () => {
       thumbnailUrl: `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg`
     };
     
-    const updated = db.saveClass(classToAdd);
+    const updated = await db.saveClass(classToAdd);
     setYogaClasses(updated);
     setNewClass({ category: YogaCategory.HATHA, level: 'Iniciante', duration: '20 min' });
   };
 
-  const handleDeleteClass = (id: string) => {
+  const handleDeleteClass = async (id: string) => {
     if (window.confirm("Deseja realmente excluir esta aula?")) {
-      setYogaClasses(db.deleteClass(id));
+      const updated = await db.deleteClass(id);
+      setYogaClasses(updated);
     }
   };
 
-  const handleAddAluno = (e: React.FormEvent) => {
+  const handleAddAluno = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEmail) return;
-    setAllowedEmails(db.saveAluno(newEmail));
+    const updated = await db.saveAluno(newEmail);
+    setAllowedEmails(updated);
     setNewEmail('');
   };
 
-  const handleDeleteAluno = (email: string) => {
+  const handleDeleteAluno = async (email: string) => {
     if (email === ADMIN_EMAIL) return;
     if (window.confirm(`Remover acesso de ${email}?`)) {
-      setAllowedEmails(db.deleteAluno(email));
+      const updated = await db.deleteAluno(email);
+      setAllowedEmails(updated);
     }
   };
 
@@ -136,8 +147,8 @@ const App: React.FC = () => {
       <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-[#f0f4f1] px-4 md:px-8 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveCategory('Todas')}>
-            <div className="w-10 h-10 bg-[#4a6741] rounded-xl flex items-center justify-center text-white text-xl shadow-inner">🧘</div>
-            <span className="text-xl font-bold text-[#2d3a2a] serif tracking-tight hidden sm:block">ZenYoga Studio</span>
+            <div className="w-10 h-10 bg-[#4a6741] rounded-xl flex items-center justify-center text-white text-xl shadow-inner">🧘‍♀️</div>
+            <span className="text-xl font-bold text-[#2d3a2a] serif tracking-tight hidden sm:block">Fernanda Yoga</span>
           </div>
           <div className="flex items-center gap-4">
             {isAdmin && (
@@ -153,41 +164,50 @@ const App: React.FC = () => {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 py-8 md:py-12">
-        <section className="bg-white rounded-[2.5rem] p-6 md:p-10 border border-[#efe9e0] shadow-sm mb-12 flex flex-col md:flex-row items-center gap-8">
-          <div className="relative w-32 h-32 flex-shrink-0">
-            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 128 128">
-              <circle cx="64" cy="64" r={radius} stroke="#f0f4f1" strokeWidth="8" fill="transparent" />
-              <circle cx="64" cy="64" r={radius} stroke="#4a6741" strokeWidth="8" fill="transparent" strokeDasharray={circumference} strokeDashoffset={circumference - (circumference * progressPercentage) / 100} strokeLinecap="round" className="transition-all duration-1000 ease-out" />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-bold text-[#2d3a2a]">{progressPercentage}%</span>
-              <span className="text-[10px] text-[#8a9b86] uppercase font-bold tracking-tighter">Concluído</span>
-            </div>
-          </div>
-          <div className="flex-1 text-center md:text-left">
-            <h2 className="text-2xl font-bold text-[#2d3a2a] mb-2 serif">Olá, {user.name}</h2>
-            <p className="text-[#6b7c67]">Você completou {completedIds.length} de {yogaClasses.length} práticas disponíveis. Siga sua jornada zen!</p>
-          </div>
-        </section>
-
-        <div className="flex overflow-x-auto pb-6 gap-3 no-scrollbar mb-8">
-          <button onClick={() => setActiveCategory('Todas')} className={`px-6 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${activeCategory === 'Todas' ? 'bg-[#4a6741] text-white shadow-lg shadow-green-100' : 'bg-white text-[#6b7c67] border border-[#efe9e0] hover:border-[#4a6741]'}`}>Todas</button>
-          <button onClick={() => setActiveCategory('Concluídas')} className={`px-6 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${activeCategory === 'Concluídas' ? 'bg-[#b8860b] text-white shadow-lg shadow-amber-100' : 'bg-white text-[#6b7c67] border border-[#efe9e0] hover:border-[#b8860b]'}`}>Minhas Concluídas</button>
-          {Object.values(YogaCategory).map((cat) => (
-            <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-6 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${activeCategory === cat ? 'bg-[#4a6741] text-white shadow-lg shadow-green-100' : 'bg-white text-[#6b7c67] border border-[#efe9e0] hover:border-[#4a6741]'}`}>{cat}</button>
-          ))}
-        </div>
-
-        {filteredClasses.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-[#efe9e0]">
-            <p className="text-[#8a9b86]">Nenhuma aula encontrada nesta categoria.</p>
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="w-12 h-12 border-4 border-[#4a6741] border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-[#8a9b86] font-medium animate-pulse">Iniciando sua jornada...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredClasses.map((yogaClass) => (
-              <VideoCard key={yogaClass.id} yogaClass={yogaClass} isCompleted={completedIds.includes(yogaClass.id)} onToggleComplete={toggleCompletion} onClick={setSelectedClass} />
-            ))}
-          </div>
+          <>
+            <section className="bg-white rounded-[2.5rem] p-6 md:p-10 border border-[#efe9e0] shadow-sm mb-12 flex flex-col md:flex-row items-center gap-8">
+              <div className="relative w-32 h-32 flex-shrink-0">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 128 128">
+                  <circle cx="64" cy="64" r={radius} stroke="#f0f4f1" strokeWidth="8" fill="transparent" />
+                  <circle cx="64" cy="64" r={radius} stroke="#4a6741" strokeWidth="8" fill="transparent" strokeDasharray={circumference} strokeDashoffset={circumference - (circumference * progressPercentage) / 100} strokeLinecap="round" className="transition-all duration-1000 ease-out" />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-2xl font-bold text-[#2d3a2a]">{progressPercentage}%</span>
+                  <span className="text-[10px] text-[#8a9b86] uppercase font-bold tracking-tighter">Concluído</span>
+                </div>
+              </div>
+              <div className="flex-1 text-center md:text-left">
+                <h2 className="text-2xl font-bold text-[#2d3a2a] mb-2 serif">Olá, {user.name}</h2>
+                <p className="text-[#6b7c67]">Você já completou {completedIds.length} das {yogaClasses.length} práticas disponíveis.</p>
+              </div>
+            </section>
+
+            <div className="flex overflow-x-auto pb-6 gap-3 no-scrollbar mb-8">
+              <button onClick={() => setActiveCategory('Todas')} className={`px-6 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${activeCategory === 'Todas' ? 'bg-[#4a6741] text-white shadow-lg shadow-green-100' : 'bg-white text-[#6b7c67] border border-[#efe9e0] hover:border-[#4a6741]'}`}>Todas</button>
+              <button onClick={() => setActiveCategory('Concluídas')} className={`px-6 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${activeCategory === 'Concluídas' ? 'bg-[#b8860b] text-white shadow-lg shadow-amber-100' : 'bg-white text-[#6b7c67] border border-[#efe9e0] hover:border-[#b8860b]'}`}>Minhas Concluídas</button>
+              {Object.values(YogaCategory).map((cat) => (
+                <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-6 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${activeCategory === cat ? 'bg-[#4a6741] text-white shadow-lg shadow-green-100' : 'bg-white text-[#6b7c67] border border-[#efe9e0] hover:border-[#4a6741]'}`}>{cat}</button>
+              ))}
+            </div>
+
+            {filteredClasses.length === 0 ? (
+              <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-[#efe9e0]">
+                <p className="text-[#8a9b86]">Ainda não há aulas nesta categoria.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {filteredClasses.map((yogaClass) => (
+                  <VideoCard key={yogaClass.id} yogaClass={yogaClass} isCompleted={completedIds.includes(yogaClass.id)} onToggleComplete={toggleCompletion} onClick={setSelectedClass} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </main>
 
@@ -196,8 +216,13 @@ const App: React.FC = () => {
           <div className="w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-6 border-b flex justify-between items-center bg-[#fdfaf5]">
               <div>
-                <h2 className="text-xl font-bold serif text-[#2d3a2a]">Gerenciar Portal</h2>
-                <p className="text-xs text-[#8a9b86]">Ajuste sua base de dados local</p>
+                <h2 className="text-xl font-bold serif text-[#2d3a2a]">Administração</h2>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${db.isConnected() ? 'bg-green-500' : 'bg-amber-500'}`}></span>
+                  <p className="text-[10px] text-[#8a9b86] uppercase font-bold tracking-wider">
+                    {db.isConnected() ? 'Banco de Dados Online' : 'Modo Offline (LocalStorage)'}
+                  </p>
+                </div>
               </div>
               <div className="flex gap-2">
                 <button onClick={() => db.exportBackup()} className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors">
@@ -213,10 +238,10 @@ const App: React.FC = () => {
             <div className="p-8 overflow-y-auto bg-white">
               {adminTab === 'alunos' ? (
                 <div>
-                  <h3 className="font-bold mb-4 text-sm text-gray-500 uppercase tracking-wider">Novo Aluno</h3>
+                  <h3 className="font-bold mb-4 text-sm text-gray-500 uppercase tracking-wider">Autorizar Novo Aluno</h3>
                   <form onSubmit={handleAddAluno} className="flex gap-2 mb-8">
                     <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="Email..." className="flex-1 p-3 border border-[#efe9e0] rounded-xl outline-none focus:ring-2 focus:ring-[#4a6741]" required />
-                    <button type="submit" className="px-6 bg-[#4a6741] text-white rounded-xl font-bold hover:bg-[#3d5435] transition-colors">OK</button>
+                    <button type="submit" className="px-6 bg-[#4a6741] text-white rounded-xl font-bold hover:bg-[#3d5435] transition-colors">Adicionar</button>
                   </form>
                   <div className="space-y-2">
                     {allowedEmails.map(e => (
@@ -230,8 +255,8 @@ const App: React.FC = () => {
               ) : (
                 <div>
                   <form onSubmit={handleAddClass} className="space-y-4 mb-8 p-6 bg-gray-100/50 rounded-2xl border border-[#efe9e0]">
-                    <input type="text" placeholder="Título" value={newClass.title || ''} onChange={e => setNewClass({...newClass, title: e.target.value})} className="w-full p-3 border border-white rounded-xl shadow-sm outline-none" required />
-                    <input type="text" placeholder="Link YouTube" value={newClass.youtubeId || ''} onChange={e => setNewClass({...newClass, youtubeId: e.target.value})} className="w-full p-3 border border-white rounded-xl shadow-sm outline-none" required />
+                    <input type="text" placeholder="Nome da Aula" value={newClass.title || ''} onChange={e => setNewClass({...newClass, title: e.target.value})} className="w-full p-3 border border-white rounded-xl shadow-sm outline-none" required />
+                    <input type="text" placeholder="Link do YouTube" value={newClass.youtubeId || ''} onChange={e => setNewClass({...newClass, youtubeId: e.target.value})} className="w-full p-3 border border-white rounded-xl shadow-sm outline-none" required />
                     <div className="grid grid-cols-2 gap-4">
                       <select value={newClass.category} onChange={e => setNewClass({...newClass, category: e.target.value as YogaCategory})} className="p-3 bg-white border-white rounded-xl outline-none shadow-sm">
                         {Object.values(YogaCategory).map(c => <option key={c} value={c}>{c}</option>)}
@@ -242,7 +267,7 @@ const App: React.FC = () => {
                         <option value="Avançado">Avançado</option>
                       </select>
                     </div>
-                    <button type="submit" className="w-full py-4 bg-[#4a6741] text-white rounded-xl font-bold">Salvar Prática</button>
+                    <button type="submit" className="w-full py-4 bg-[#4a6741] text-white rounded-xl font-bold">Salvar Prática Globalmente</button>
                   </form>
                   <div className="space-y-3">
                     {yogaClasses.map(c => (
@@ -283,12 +308,11 @@ const App: React.FC = () => {
             </div>
             <div className="p-8 flex flex-col md:flex-row gap-6 items-center justify-between bg-white">
               <p className="text-[#6b7c67] flex-1">{selectedClass.description}</p>
-              <button onClick={() => {toggleCompletion(selectedClass.id); setSelectedClass(null);}} className={`px-10 py-4 rounded-2xl font-bold shadow-xl transition-all ${completedIds.includes(selectedClass.id) ? 'bg-gray-100 text-gray-400' : 'bg-[#4a6741] text-white hover:bg-[#3d5435]'}`}>{completedIds.includes(selectedClass.id) ? 'Concluída ✓' : 'Concluir Prática'}</button>
+              <button onClick={() => {toggleCompletion(selectedClass.id); setSelectedClass(null);}} className={`px-10 py-4 rounded-2xl font-bold shadow-xl transition-all ${completedIds.includes(selectedClass.id) ? 'bg-gray-100 text-gray-400' : 'bg-[#4a6741] text-white hover:bg-[#3d5435]'}`}>{completedIds.includes(selectedClass.id) ? 'Prática Concluída ✓' : 'Marcar como Concluída'}</button>
             </div>
           </div>
         </div>
       )}
-      <AIAssistant availableClasses={yogaClasses} />
     </div>
   );
 };

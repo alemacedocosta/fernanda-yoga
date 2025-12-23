@@ -1,7 +1,5 @@
 {
-  "name": "ZenYoga Studio - Portal do Aluno",
-  "description": "Uma plataforma exclusiva para alunos de yoga, com acesso a aulas privadas, recomendações inteligentes via IA e acompanhamento de progresso.",
-  "requestFramePermissions": [
-    "microphone"
-  ]
+  "name": "Fernanda Yoga - Portal do Aluno",
+  "description": "Plataforma exclusiva de aulas de yoga da Fernanda, com acesso a conteúdos privados e acompanhamento de progresso.",
+  "requestFramePermissions": []
 }
